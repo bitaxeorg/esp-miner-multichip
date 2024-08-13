@@ -80,7 +80,7 @@ void EMC2302_set_fan_speed(uint8_t devicenum, float percent)
     int edges = 9;    // motor edges
     int ftach = 32768;  // tach clock frequency
 
-    ESP_LOGI(TAG, "SET-Fan Speed[%d] = %d%% of %d RPM", devicenum, (int) (percent*100), max_rpm);
+    // ESP_LOGI(TAG, "SET-Fan Speed[%d] = %d%% of %d RPM", devicenum, (int) (percent*100), max_rpm);
 
     tach_counts = (uint16_t) ((edges - 1)/poles * (1.0f/req_rpm) * ftach * 60);
     tach_counts_MSB = tach_counts >> 5;
