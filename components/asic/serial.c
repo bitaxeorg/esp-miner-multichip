@@ -92,7 +92,7 @@ void SERIAL_debug_rx(void)
         return;
     }
 
-    memset(buf, 0, 1024);
+    memset(buf, 0, 100);
 }
 
 void SERIAL_clear_buffer(void)
