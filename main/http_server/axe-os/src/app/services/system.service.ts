@@ -22,12 +22,12 @@ export class SystemService {
     } else {
       return of(
         {
-          power: 40.670000076293945,
-          voltage: 5208.75,
-          current: 2237.5,
-          temp: 55,
-          vrTemp: 45,
-          hashRate: 475,
+          power: 41.56365966796875,
+          voltage: 11859.375,
+          current: 11578.125,
+          temp: 49,
+          vrTemp: 54,
+          hashRate: 2775.61417065818,
           bestDiff: "0",
           bestSessionDiff: "0",
           freeHeap: 200504,
@@ -41,7 +41,7 @@ export class SystemService {
           sharesRejected: 0,
           uptimeSeconds: 38,
           asicCount: 1,
-          smallCoreCount: 672,
+          smallCoreCount: 894,
           ASICModel: eASICModel.BM1366,
           deviceModel: eDeviceModel.hex,
           stratumURL: "public-pool.io",
@@ -55,10 +55,10 @@ export class SystemService {
           invertfanpolarity: 1,
           autofanspeed: 1,
           fanspeed: 100,
-          fanrpm: 0,
+          fanrpm: 1245,
 
-          boardtemp1: 30,
-          boardtemp2: 40,
+          boardtemp1: 37,
+          boardtemp2: 42,
           overheat_mode: 0
         }
       ).pipe(delay(1000));
