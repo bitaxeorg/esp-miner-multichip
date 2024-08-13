@@ -28,12 +28,6 @@ export class HomeComponent {
 
   public targetPowerLimitation: any;
   public powerLimitations = {
-    default: {
-      power: { min: 3.0, max: 20.0 },
-      voltage: { min: 4.5, max: 5.5 },
-      dangerVoltage: 4.8,
-      coreVoltage: { min: 0.9, max: 1.8 }
-    },
     hex: {
       power: { min: 10.0, max: 100.0 },
       voltage: { min: 11.0, max: 14.0 },
@@ -117,17 +111,10 @@ export class HomeComponent {
       tap(info => {
         this.deviceModel = info.deviceModel;
         switch (this.deviceModel) {
-          case eDeviceModel.max:
-          case eDeviceModel.supra:
-          case eDeviceModel.ultra:
-            this.targetPowerLimitation = this.powerLimitations.default;
-            break;
           case eDeviceModel.hex:
             this.targetPowerLimitation = this.powerLimitations.hex;
             break;
           default:
-            this.targetPowerLimitation = this.powerLimitations.default;
-            break;
         }
 
         this.dataData.push(info.hashRate * 1000000000);

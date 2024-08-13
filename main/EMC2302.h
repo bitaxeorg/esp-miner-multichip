@@ -1,6 +1,7 @@
 #ifndef EMC2302_H_
 #define EMC2302_H_
 
+#include <stdint.h>
 
 #define EMC2302_I2CADDR_DEFAULT 0x2F ///< EMC2302 default i2c address
 #define EMC2302_WHOAMI 0xFD          ///< Chip ID register

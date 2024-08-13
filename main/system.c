@@ -3,13 +3,10 @@
 #include "esp_log.h"
 
 #include "i2c_master.h"
-#include "EMC2101.h"
 #include "EMC2302.h"
-#include "INA260.h"
 #include "TMP1075.h"
 #include "adc.h"
 #include "connect.h"
-#include "led_controller.h"
 #include "nvs_config.h"
 #include "oled.h"
 #include "vcore.h"
@@ -95,11 +92,6 @@ static void _init_system(GlobalState * GLOBAL_STATE)
     // set the wifi_status to blank
     memset(module->wifi_status, 0, 20);
 
-    // test the LEDs
-    //  ESP_LOGI(TAG, "Init LEDs!");
-    //  ledc_init();
-    //  led_set();
-
     // Init I2C
     ESP_ERROR_CHECK(i2c_master_init());
     ESP_LOGI(TAG, "I2C initialized successfully");
@@ -109,11 +101,6 @@ static void _init_system(GlobalState * GLOBAL_STATE)
     VCORE_set_voltage(nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE, CONFIG_ASIC_VOLTAGE) / 1000.0, GLOBAL_STATE);
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
-            EMC2101_init(nvs_config_get_u16(NVS_CONFIG_INVERT_FAN_POLARITY, 1));
-            break;
         case DEVICE_HEX:
             EMC2302_init(nvs_config_get_u16(NVS_CONFIG_INVERT_FAN_POLARITY, 1));
             break;
@@ -129,9 +116,6 @@ static void _init_system(GlobalState * GLOBAL_STATE)
     }
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             // oled
             if (!OLED_init()) {
@@ -162,9 +146,6 @@ void SYSTEM_update_overheat_mode(GlobalState * GLOBAL_STATE)
 static void _show_overheat_screen(GlobalState * GLOBAL_STATE)
 {
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             if (OLED_status()) {
                 OLED_clearLine(0);
@@ -178,7 +159,6 @@ static void _show_overheat_screen(GlobalState * GLOBAL_STATE)
             }
             break;
         default:
-            break;
     }
 }
 
@@ -191,9 +171,6 @@ static void _update_hashrate(GlobalState * GLOBAL_STATE)
     }
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             float efficiency = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.power / (module->current_hashrate / 1000.0);
             OLED_clearLine(0);
@@ -214,9 +191,6 @@ static void _update_shares(GlobalState * GLOBAL_STATE)
         return;
     }
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             OLED_clearLine(1);
             memset(module->oled_buf, 0, 20);
@@ -236,9 +210,6 @@ static void _update_best_diff(GlobalState * GLOBAL_STATE)
     }
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             OLED_clearLine(3);
             memset(module->oled_buf, 0, 20);
@@ -252,9 +223,6 @@ static void _update_best_diff(GlobalState * GLOBAL_STATE)
 static void _clear_display(GlobalState * GLOBAL_STATE)
 {
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             OLED_clearLine(0);
             OLED_clearLine(1);
@@ -271,9 +239,6 @@ static void _update_system_info(GlobalState * GLOBAL_STATE)
     PowerManagementModule * power_management = &GLOBAL_STATE->POWER_MANAGEMENT_MODULE;
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             if (OLED_status()) {
 
@@ -306,9 +271,6 @@ static void _update_esp32_info(GlobalState * GLOBAL_STATE)
     uint16_t vcore = VCORE_get_voltage_mv(GLOBAL_STATE);
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             if (OLED_status()) {
 
@@ -340,9 +302,6 @@ static void _init_connection(GlobalState * GLOBAL_STATE)
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             if (OLED_status()) {
                 memset(module->oled_buf, 0, 20);
@@ -359,9 +318,6 @@ static void _update_connection(GlobalState * GLOBAL_STATE)
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             if (OLED_status()) {
                 OLED_clearLine(2);
@@ -396,9 +352,6 @@ static void _update_system_performance(GlobalState * GLOBAL_STATE)
     int uptime_in_minutes = remaining_seconds / 60;
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             if (OLED_status()) {
 
@@ -418,9 +371,6 @@ static void _update_system_performance(GlobalState * GLOBAL_STATE)
 static void show_ap_information(const char * error, GlobalState * GLOBAL_STATE)
 {
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
         case DEVICE_HEX:
             if (OLED_status()) {
                 _clear_display(GLOBAL_STATE);

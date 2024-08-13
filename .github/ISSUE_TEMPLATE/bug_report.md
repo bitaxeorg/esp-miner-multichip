@@ -27,7 +27,7 @@ A clear and concise description of what you expected to happen.
 If applicable, add AxeOS screenshots and/or photos of your Bitaxe to help explain your problem.
 
 **Hardware (please complete the following information):**
- - Bitaxe HW version: [e.g. Ultra 205, Supra 401, etc]
+ - Bitaxe HW version: [e.g. Hex 303, etc]
  - Bitaxe HW vendor: [Where you purchased the Bitaxe, or self-built]
  - ESP-Miner FW version: [e.g. 2.1.1, etc]
  - Hash Frequency:

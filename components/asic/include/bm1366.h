@@ -11,7 +11,7 @@
 #define BM1366_SERIALTX_DEBUG false
 #define BM1366_SERIALRX_DEBUG false
 #define BM1366_DEBUG_WORK false //causes insane amount of debug output
-#define BM1368_DEBUG_JOBS false //causes insane amount of debug output
+#define BM1366_DEBUG_JOBS false //causes insane amount of debug output
 
 static const uint64_t BM1366_CORE_COUNT = 112;
 static const uint64_t BM1366_SMALL_CORE_COUNT = 894;
@@ -20,6 +20,18 @@ typedef struct
 {
     float frequency;
 } bm1366Module;
+
+typedef enum
+{
+    JOB_PACKET = 0,
+    CMD_PACKET = 1,
+} packet_type_t;
+
+typedef enum
+{
+    JOB_RESP = 0,
+    CMD_RESP = 1,
+} response_type_t;
 
 typedef struct __attribute__((__packed__))
 {

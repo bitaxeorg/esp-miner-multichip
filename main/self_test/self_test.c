@@ -1,7 +1,6 @@
 #include "i2c_master.h"
-#include "DS4432U.h"
-#include "EMC2101.h"
-#include "INA260.h"
+#include "EMC2302.h"
+#include "TPS546.h"
 #include "adc.h"
 #include "esp_log.h"
 #include "global_state.h"
@@ -14,13 +13,15 @@
 
 static const char * TAG = "self_test";
 
+static uint16_t max(uint16_t a, uint16_t b) {
+    return (a > b) ? a : b;
+}
+
 static void display_msg(char * msg, GlobalState * GLOBAL_STATE) {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
+        case DEVICE_HEX:
             if (OLED_status()) {
                 memset(module->oled_buf, 0, 20);
                 snprintf(module->oled_buf, 20, msg);
@@ -35,15 +36,13 @@ static bool fan_sense_pass(GlobalState * GLOBAL_STATE)
 {
     uint16_t fan_speed = 0;
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
-            fan_speed = EMC2101_get_fan_speed();
+        case DEVICE_HEX:
+            fan_speed = max(EMC2302_get_fan_speed(0), EMC2302_get_fan_speed(1));
             break;
         default:
     }
     ESP_LOGI(TAG, "fanSpeed: %d", fan_speed);
-    if (fan_speed > 1000) {
+    if (fan_speed > 500) {
         return true;
     }
     return false;
@@ -51,9 +50,9 @@ static bool fan_sense_pass(GlobalState * GLOBAL_STATE)
 
 static bool power_consumption_pass()
 {
-    float power = INA260_read_power() / 1000;
+    float power = TPS546_get_vout() * TPS546_get_iout();
     ESP_LOGI(TAG, "Power: %f", power);
-    if (power > 9 && power < 15) {
+    if (power > 20 && power < 100) {
         return true;
     }
     return false;
@@ -84,39 +83,26 @@ void self_test(void * pvParameters)
         GLOBAL_STATE->valid_jobs[i] = 0;
     }
 
-    switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
-            // turn ASIC on
-            gpio_set_direction(GPIO_NUM_10, GPIO_MODE_OUTPUT);
-            gpio_set_level(GPIO_NUM_10, 0);
-            break;
-        default:
-    }
-
     // Init I2C
     ESP_ERROR_CHECK(i2c_master_init());
     ESP_LOGI(TAG, "I2C initialized successfully");
 
+    // Init VCore
     VCORE_init(GLOBAL_STATE);
     VCORE_set_voltage(nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE, CONFIG_ASIC_VOLTAGE) / 1000.0, GLOBAL_STATE);
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
-            EMC2101_init(nvs_config_get_u16(NVS_CONFIG_INVERT_FAN_POLARITY, 1));
-            EMC2101_set_fan_speed(1);
+        case DEVICE_HEX:
+            EMC2302_init(nvs_config_get_u16(NVS_CONFIG_INVERT_FAN_POLARITY, 1));
+            EMC2302_set_fan_speed(0, 1);
+            EMC2302_set_fan_speed(1, 1);
             break;
         default:
     }
 
     // Display testing
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
+        case DEVICE_HEX:
             if (!OLED_init()) {
                 ESP_LOGE(TAG, "OLED init failed!");
             } else {
@@ -128,22 +114,6 @@ void self_test(void * pvParameters)
             break;
         default:
     }
-
-    // VCore regulator testing
-    switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
-            if(GLOBAL_STATE->board_version != 402){
-                if(!DS4432U_test()){
-                    ESP_LOGE(TAG, "DS4432 test failed!");
-                    display_msg("DS4432U:FAIL", GLOBAL_STATE);
-                }
-            }
-            break;
-        default:
-    }
-
 
     SERIAL_init();
     uint8_t chips_detected = (GLOBAL_STATE->ASIC_functions.init_fn)(GLOBAL_STATE->POWER_MANAGEMENT_MODULE.frequency_value, GLOBAL_STATE->asic_count);
@@ -230,11 +200,9 @@ void self_test(void * pvParameters)
     }
 
     switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
-            if (INA260_installed() && !power_consumption_pass()) {
-                ESP_LOGE(TAG, "INA260 test failed!");
+        case DEVICE_HEX:
+            if (!power_consumption_pass()) {
+                ESP_LOGE(TAG, "TPS546 test failed!");
                 display_msg("MONITOR:   FAIL", GLOBAL_STATE);
                 return;
             }
@@ -247,7 +215,7 @@ void self_test(void * pvParameters)
         display_msg("FAN:       WARN", GLOBAL_STATE);
     }
 
-
+    ESP_LOGI(TAG, "All tests passed!");
     display_msg("           PASS", GLOBAL_STATE);
     nvs_config_set_u16(NVS_CONFIG_SELF_TEST, 0);
 }

@@ -1,13 +1,9 @@
 idf_component_register(
 SRCS
     "adc.c"
-    "DS4432U.c"
-    "EMC2101.c"
     "EMC2302.c"
     "fonts.c"
     "i2c_master.c"
-    "INA260.c"
-    "led_controller.c"
     "main.c"
     "nvs_config.c"
     "oled.c"
@@ -29,7 +25,7 @@ INCLUDE_DIRS
     "."
     "tasks"
     "http_server"
-    "../components/bm1397/include"
+    "../components/asic/include"
     "../components/connect/include"
     "../components/dns_server/include"
     "../components/stratum/include"

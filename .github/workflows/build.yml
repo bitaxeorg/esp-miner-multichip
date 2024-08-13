@@ -36,11 +36,11 @@ jobs:
       with:
         name: esp-miner-factory.bin
         path: ./esp-miner-merged.bin
-    - name: upload esp-miner.bin
+    - name: upload esp-miner-multichip.bin
       uses: actions/upload-artifact@v3
       with:
         name: esp-miner-ota.bin
-        path: ./build/esp-miner.bin
+        path: ./build/esp-miner-multichip.bin
     - name: upload www.bin
       uses: actions/upload-artifact@v3
       with:

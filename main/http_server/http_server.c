@@ -396,15 +396,9 @@ static esp_err_t GET_system_info(httpd_req_t * req)
     cJSON_AddNumberToObject(root, "uptimeSeconds", (esp_timer_get_time() - GLOBAL_STATE->SYSTEM_MODULE.start_time) / 1000000);
     cJSON_AddNumberToObject(root, "asicCount", GLOBAL_STATE->asic_count);
     uint16_t small_core_count = 0;
-    switch (GLOBAL_STATE->asic_model){
-        case ASIC_BM1397:
-            small_core_count = BM1397_SMALL_CORE_COUNT;
-            break;
+    switch (GLOBAL_STATE->asic_model) {
         case ASIC_BM1366:
             small_core_count = BM1366_SMALL_CORE_COUNT;
-            break;
-        case ASIC_BM1368:
-            small_core_count = BM1368_SMALL_CORE_COUNT;
             break;
         case ASIC_UNKNOWN:
         default:

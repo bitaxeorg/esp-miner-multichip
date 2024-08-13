@@ -30,6 +30,8 @@ static uint8_t MFR_REVISION[] = {0x00, 0x00, 0x01};
 
 static uint8_t COMPENSATION_CONFIG[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+static TPS546_CONFIG TARGET_CONFIG;
+
 /**
  * @brief SMBus read byte
  */
@@ -356,8 +358,10 @@ static uint16_t float_2_ulinear16(float value)
 /*--- Public TPS546 functions ---*/
 
 // Set up the TPS546 regulator and turn it on
-int TPS546_init(GlobalState * global_state)
+int TPS546_init(TPS546_CONFIG config)
 {
+    TARGET_CONFIG = config;
+
 	uint8_t data[6];
     uint8_t u8_value;
     uint16_t u16_value;
@@ -396,7 +400,7 @@ int TPS546_init(GlobalState * global_state)
         ESP_LOGI(TAG, "Config version mismatch, writing new config values");
         smb_read_byte(PMBUS_VOUT_MODE, &voutmode);
         ESP_LOGI(TAG, "VOUT_MODE: %02x", voutmode);
-        TPS546_write_entire_config(global_state);
+        TPS546_write_entire_config();
     }
 
     /* Show temperature */
@@ -476,7 +480,7 @@ void TPS546_set_mfr_info(void)
 }
 
 /* Set all the relevant config registers for normal operation */
-void TPS546_write_entire_config(GlobalState * global_state)
+void TPS546_write_entire_config()
 {
     ESP_LOGI(TAG, "---Writing new config values to TPS546---");
     /* set up the ON_OFF_CONFIG */
@@ -489,39 +493,23 @@ void TPS546_write_entire_config(GlobalState * global_state)
 
     /* vin voltage */
     ESP_LOGI(TAG, "Setting VIN");
-    if (global_state->device_model == DEVICE_HEX) {
-        smb_write_word(PMBUS_VIN_ON, float_2_slinear11(TPS546_INIT_VIN_ON_HEX));
-        smb_write_word(PMBUS_VIN_OFF, float_2_slinear11(TPS546_INIT_VIN_OFF_HEX));
-        smb_write_word(PMBUS_VIN_UV_WARN_LIMIT, float_2_slinear11(TPS546_INIT_VIN_UV_WARN_LIMIT_HEX));
-        smb_write_word(PMBUS_VIN_OV_FAULT_LIMIT, float_2_slinear11(TPS546_INIT_VIN_OV_FAULT_LIMIT_HEX));
-    } else {
-        smb_write_word(PMBUS_VIN_ON, float_2_slinear11(TPS546_INIT_VIN_ON));
-        smb_write_word(PMBUS_VIN_OFF, float_2_slinear11(TPS546_INIT_VIN_OFF));
-        smb_write_word(PMBUS_VIN_UV_WARN_LIMIT, float_2_slinear11(TPS546_INIT_VIN_UV_WARN_LIMIT));
-        smb_write_word(PMBUS_VIN_OV_FAULT_LIMIT, float_2_slinear11(TPS546_INIT_VIN_OV_FAULT_LIMIT));
-    }
+    smb_write_word(PMBUS_VIN_ON, float_2_slinear11(TARGET_CONFIG.TPS546_INIT_VIN_ON));
+    smb_write_word(PMBUS_VIN_OFF, float_2_slinear11(TARGET_CONFIG.TPS546_INIT_VIN_OFF));
+    smb_write_word(PMBUS_VIN_UV_WARN_LIMIT, float_2_slinear11(TARGET_CONFIG.TPS546_INIT_VIN_UV_WARN_LIMIT));
+    smb_write_word(PMBUS_VIN_OV_FAULT_LIMIT, float_2_slinear11(TARGET_CONFIG.TPS546_INIT_VIN_OV_FAULT_LIMIT));
+    
     smb_write_byte(PMBUS_VIN_OV_FAULT_RESPONSE, TPS546_INIT_VIN_OV_FAULT_RESPONSE);
 
     /* vout voltage */
-    if (global_state->device_model == DEVICE_HEX) {
-        ESP_LOGI(TAG, "Setting VOUT SCALE");
-        smb_write_word(PMBUS_VOUT_SCALE_LOOP, float_2_slinear11(TPS546_INIT_SCALE_LOOP_HEX));
-        ESP_LOGI(TAG, "VOUT_COMMAND");
-        smb_write_word(PMBUS_VOUT_COMMAND, float_2_ulinear16(TPS546_INIT_VOUT_COMMAND_HEX));
-        ESP_LOGI(TAG, "VOUT_MIN");
-        smb_write_word(PMBUS_VOUT_MIN, float_2_ulinear16(TPS546_INIT_VOUT_MIN_HEX));
-        ESP_LOGI(TAG, "VOUT_MAX");
-        smb_write_word(PMBUS_VOUT_MAX, float_2_ulinear16(TPS546_INIT_VOUT_MAX_HEX));
-    } else {
-        ESP_LOGI(TAG, "Setting VOUT SCALE");
-        smb_write_word(PMBUS_VOUT_SCALE_LOOP, float_2_slinear11(TPS546_INIT_SCALE_LOOP));
-        ESP_LOGI(TAG, "VOUT_COMMAND");
-        smb_write_word(PMBUS_VOUT_COMMAND, float_2_ulinear16(TPS546_INIT_VOUT_COMMAND));
-        ESP_LOGI(TAG, "VOUT_MIN");
-        smb_write_word(PMBUS_VOUT_MIN, float_2_ulinear16(TPS546_INIT_VOUT_MIN));
-        ESP_LOGI(TAG, "VOUT_MAX");
-        smb_write_word(PMBUS_VOUT_MAX, float_2_ulinear16(TPS546_INIT_VOUT_MAX));
-    }
+    ESP_LOGI(TAG, "Setting VOUT SCALE");
+    smb_write_word(PMBUS_VOUT_SCALE_LOOP, float_2_slinear11(TARGET_CONFIG.TPS546_INIT_SCALE_LOOP));
+    ESP_LOGI(TAG, "VOUT_COMMAND");
+    smb_write_word(PMBUS_VOUT_COMMAND, float_2_ulinear16(TARGET_CONFIG.TPS546_INIT_VOUT_COMMAND));
+    ESP_LOGI(TAG, "VOUT_MIN");
+    smb_write_word(PMBUS_VOUT_MIN, float_2_ulinear16(TARGET_CONFIG.TPS546_INIT_VOUT_MIN));
+    ESP_LOGI(TAG, "VOUT_MAX");
+    smb_write_word(PMBUS_VOUT_MAX, float_2_ulinear16(TARGET_CONFIG.TPS546_INIT_VOUT_MAX));
+
     ESP_LOGI(TAG, "VOUT_OV_FAULT_LIMIT");
     smb_write_word(PMBUS_VOUT_OV_FAULT_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_OV_FAULT_LIMIT));
     ESP_LOGI(TAG, "VOUT_OV_WARN_LIMIT");
@@ -539,11 +527,7 @@ void TPS546_write_entire_config(GlobalState * global_state)
     ESP_LOGI(TAG, "Setting IOUT");
     smb_write_word(PMBUS_IOUT_OC_WARN_LIMIT, float_2_slinear11(TPS546_INIT_IOUT_OC_WARN_LIMIT));
     smb_write_word(PMBUS_IOUT_OC_FAULT_LIMIT, float_2_slinear11(TPS546_INIT_IOUT_OC_FAULT_LIMIT));
-    if (global_state->device_model == DEVICE_HEX) {
-        smb_write_byte(PMBUS_IOUT_OC_FAULT_RESPONSE, TPS546_INIT_IOUT_OC_FAULT_RESPONSE_HEX);
-    } else {
-        smb_write_byte(PMBUS_IOUT_OC_FAULT_RESPONSE, TPS546_INIT_IOUT_OC_FAULT_RESPONSE);
-    }
+    smb_write_byte(PMBUS_IOUT_OC_FAULT_RESPONSE, TPS546_INIT_IOUT_OC_FAULT_RESPONSE);
 
     /* temperature */
     ESP_LOGI(TAG, "Setting TEMPERATURE");
@@ -675,26 +659,16 @@ float TPS546_get_vout(void)
  * A value between TPS546_INIT_VOUT_MIN and TPS546_INIT_VOUT_MAX
  * send a 0 to turn off the output
 **/
-void TPS546_set_vout(float volts, GlobalState * global_state)
+void TPS546_set_vout(float volts)
 {
     uint16_t value;
-    float vout_min;
-    float vout_max;
-
-    if (global_state->device_model == DEVICE_HEX) {
-        vout_min = TPS546_INIT_VOUT_MIN_HEX;
-        vout_max = TPS546_INIT_VOUT_MAX_HEX;
-    } else {
-        vout_min = TPS546_INIT_VOUT_MIN;
-        vout_max = TPS546_INIT_VOUT_MAX;
-    }
 
     if (volts == 0) {
         /* turn off output */
         smb_write_byte(PMBUS_OPERATION, OPERATION_OFF);
     } else {
         /* make sure we're in range */
-        if ((volts < vout_min) || (volts > vout_max)) {
+        if ((volts < TARGET_CONFIG.TPS546_INIT_VOUT_MIN) || (volts > TARGET_CONFIG.TPS546_INIT_VOUT_MAX)) {
             ESP_LOGI(TAG, "ERR- Voltage requested (%f V) is out of range", volts);
         } else {
             /* set the output voltage */

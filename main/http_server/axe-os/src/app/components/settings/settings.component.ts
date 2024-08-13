@@ -138,8 +138,8 @@ export class SettingsComponent {
   otaUpdate(event: FileUploadHandlerEvent) {
     const file = event.files[0];
 
-    if (file.name != 'esp-miner.bin') {
-      this.toastrService.error('Incorrect file, looking for esp-miner.bin.', 'Error');
+    if (file.name != 'esp-miner-multichip.bin') {
+      this.toastrService.error('Incorrect file, looking for esp-miner-multichip.bin.', 'Error');
       return;
     }
 

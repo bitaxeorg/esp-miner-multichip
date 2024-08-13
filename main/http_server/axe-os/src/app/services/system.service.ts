@@ -22,10 +22,10 @@ export class SystemService {
     } else {
       return of(
         {
-          power: 11.670000076293945,
+          power: 40.670000076293945,
           voltage: 5208.75,
           current: 2237.5,
-          temp: 60,
+          temp: 55,
           vrTemp: 45,
           hashRate: 475,
           bestDiff: "0",
@@ -43,13 +43,13 @@ export class SystemService {
           asicCount: 1,
           smallCoreCount: 672,
           ASICModel: eASICModel.BM1366,
-          deviceModel: eDeviceModel.ultra,
+          deviceModel: eDeviceModel.hex,
           stratumURL: "public-pool.io",
           stratumPort: 21496,
           stratumUser: "bc1q99n3pu025yyu0jlywpmwzalyhm36tg5u37w20d.bitaxe-U1",
           frequency: 485,
           version: "2.0",
-          boardVersion: "204",
+          boardVersion: "303",
           flipscreen: 1,
           invertscreen: 0,
           invertfanpolarity: 1,
