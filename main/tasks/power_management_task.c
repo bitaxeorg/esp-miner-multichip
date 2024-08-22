@@ -86,7 +86,7 @@ void POWER_MANAGEMENT_task(void * pvParameters)
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
     while (1) {
-        // get voltage, current, power, fan_rpm
+        // get voltage, current, power
         switch (GLOBAL_STATE->device_model) {
             case DEVICE_HEX:
                 power_management->voltage = TPS546_get_vin() * 1000;
@@ -95,8 +95,6 @@ void POWER_MANAGEMENT_task(void * pvParameters)
                 // calculate regulator power (in milliwatts)
                 power_management->power = (TPS546_get_vout() * power_management->current) / 1000;
 
-                // get the fan RPM
-                power_management->fan_rpm = max(EMC2302_get_fan_speed(0), EMC2302_get_fan_speed(1));
                 break;
             default:
         }
@@ -133,7 +131,8 @@ void POWER_MANAGEMENT_task(void * pvParameters)
                     exit(EXIT_FAILURE);
                 }
 
-                ESP_LOGI(TAG, "VIN: %f, VOUT: %f, IOUT: %f", TPS546_get_vin(), TPS546_get_vout(), TPS546_get_iout());
+                //enable for debugging TPS
+                //ESP_LOGI(TAG, "VIN: %f, VOUT: %f, IOUT: %f", TPS546_get_vin(), TPS546_get_vout(), TPS546_get_iout());
                 // ESP_LOGI(TAG, "Regulator power: %f mW", power_management->power);
                 // ESP_LOGI(TAG, "TPS546 Temp: %2f", power_management->vr_temp);
                 // ESP_LOGI(TAG, "TPS546 Frequency %d", TPS546_get_frequency());
@@ -145,13 +144,11 @@ void POWER_MANAGEMENT_task(void * pvParameters)
 
             power_management->fan_perc = (float)automatic_fan_speed(power_management->chip_temp_avg, GLOBAL_STATE);
 
-        } else {
-            float fs = (float) nvs_config_get_u16(NVS_CONFIG_FAN_SPEED, 100);
-
-            power_management->fan_perc = fs;
-            
+        } else {         
             switch (GLOBAL_STATE->device_model) {
                 case DEVICE_HEX:
+                    float fs = (float) nvs_config_get_u16(NVS_CONFIG_FAN_SPEED, 100);
+                    power_management->fan_perc = fs;
                     EMC2302_set_fan_speed(0, (float) fs / 100);
                     EMC2302_set_fan_speed(1, (float) fs / 100);
                     break;

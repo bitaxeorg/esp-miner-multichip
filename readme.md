@@ -54,6 +54,16 @@ The bitaxetool requires a config.cvs preloaded file and the appropiate firmware.
 bitaxetool --config ./config.cvs --firmware ./esp-miner-multichip-factory.bin
 ```
 
+## Build from source
+
+Building the esp-miner-multichip firmware requires ESP-IDF v2.2 upwards and npm 10.2+
+
+--> install VSCode extension for esp-idf and express install
+
+in ./main/http_server/axe-os --> `npm install`--> `npm run build`
+
+in ./ --> `idf.py build` --> this will create the build dir and you can use the `esp-miner-multichip.bin`and `wwww.bin` to update your Device.
+
 ## API
 Bitaxe provides an API to expose actions and information.
 

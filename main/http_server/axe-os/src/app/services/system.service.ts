@@ -55,7 +55,6 @@ export class SystemService {
           invertfanpolarity: 1,
           autofanspeed: 1,
           fanspeed: 100,
-          fanrpm: 1245,
 
           boardtemp1: 37,
           boardtemp2: 42,
