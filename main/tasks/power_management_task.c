@@ -145,13 +145,11 @@ void POWER_MANAGEMENT_task(void * pvParameters)
 
             power_management->fan_perc = (float)automatic_fan_speed(power_management->chip_temp_avg, GLOBAL_STATE);
 
-        } else {
-            float fs = (float) nvs_config_get_u16(NVS_CONFIG_FAN_SPEED, 100);
-
-            power_management->fan_perc = fs;
-            
+        } else {         
             switch (GLOBAL_STATE->device_model) {
                 case DEVICE_HEX:
+                    float fs = (float) nvs_config_get_u16(NVS_CONFIG_FAN_SPEED, 100);
+                    power_management->fan_perc = fs;
                     EMC2302_set_fan_speed(0, (float) fs / 100);
                     EMC2302_set_fan_speed(1, (float) fs / 100);
                     break;
