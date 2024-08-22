@@ -4,7 +4,6 @@
 typedef struct
 {
     uint16_t fan_perc;
-    uint16_t fan_rpm;
     float chip_temp_avg;
     float vr_temp;
     float board_temp_1;

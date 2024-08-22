@@ -56,25 +56,6 @@ void EMC2302_set_fan_speed(uint8_t devicenum, float percent)
     ESP_ERROR_CHECK(register_write_byte(FAN_SETTING_REG, speed));
 }
 
-// Gets the fan speed
-uint16_t EMC2302_get_fan_speed(uint8_t devicenum)
-{
-    uint8_t tach_lsb, tach_msb;
-    uint16_t RPM;
-    uint8_t TACH_LSB_REG = EMC2302_TACH1_LSB + (devicenum * 0x10);
-    uint8_t TACH_MSB_REG = EMC2302_TACH1_MSB + (devicenum * 0x10);
-
-    ESP_ERROR_CHECK(register_read(TACH_LSB_REG, &tach_lsb, 1));
-    ESP_ERROR_CHECK(register_read(TACH_MSB_REG, &tach_msb, 1));
-
-    //ESP_LOGI(TAG, "Raw Fan Speed[%d] = %02X %02X", devicenum, tach_msb, tach_lsb);
-    RPM = (tach_msb << 5) + ((tach_lsb >> 3) & 0x1F);
-    RPM = EMC2302_FAN_RPM_NUMERATOR / RPM;
-    //ESP_LOGI(TAG, "Fan Speed[%d] = %d RPM", devicenum, RPM);
-
-    return RPM;
-}
-
 float EMC2302_get_external_temp(void)
 {
     // We don't have temperature on this chip, so fake it

@@ -52,7 +52,7 @@
 #define EMC2302_TACH2_LSB 0x4E          ///< Tach 2 reading low byte
 #define EMC2302_TACH2_MSB 0x4F          ///< Tach 2 reading high byte
 
-#define EMC2302_FAN_RPM_NUMERATOR 3932160 ///< Conversion unit to convert LSBs to fan RPM
+//#define EMC2302_FAN_RPM_NUMERATOR 3932160 ///< Conversion unit to convert LSBs to fan RPM
 #define _TEMP_LSB 0.125                   ///< single bit value for internal temperature readings
 
 /**

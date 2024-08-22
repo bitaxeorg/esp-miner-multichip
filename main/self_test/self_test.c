@@ -32,22 +32,6 @@ static void display_msg(char * msg, GlobalState * GLOBAL_STATE) {
     }
 }
 
-static bool fan_sense_pass(GlobalState * GLOBAL_STATE)
-{
-    uint16_t fan_speed = 0;
-    switch (GLOBAL_STATE->device_model) {
-        case DEVICE_HEX:
-            fan_speed = max(EMC2302_get_fan_speed(0), EMC2302_get_fan_speed(1));
-            break;
-        default:
-    }
-    ESP_LOGI(TAG, "fanSpeed: %d", fan_speed);
-    if (fan_speed > 500) {
-        return true;
-    }
-    return false;
-}
-
 static bool power_consumption_pass()
 {
     float power = TPS546_get_vout() * TPS546_get_iout();
@@ -208,11 +192,6 @@ void self_test(void * pvParameters)
             }
             break;
         default:
-    }
-
-    if (!fan_sense_pass(GLOBAL_STATE)) {
-        ESP_LOGE(TAG, "FAN test failed!");
-        display_msg("FAN:       WARN", GLOBAL_STATE);
     }
 
     ESP_LOGI(TAG, "All tests passed!");

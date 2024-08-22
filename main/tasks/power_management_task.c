@@ -86,7 +86,7 @@ void POWER_MANAGEMENT_task(void * pvParameters)
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
     while (1) {
-        // get voltage, current, power, fan_rpm
+        // get voltage, current, power
         switch (GLOBAL_STATE->device_model) {
             case DEVICE_HEX:
                 power_management->voltage = TPS546_get_vin() * 1000;
@@ -95,8 +95,6 @@ void POWER_MANAGEMENT_task(void * pvParameters)
                 // calculate regulator power (in milliwatts)
                 power_management->power = (TPS546_get_vout() * power_management->current) / 1000;
 
-                // get the fan RPM
-                power_management->fan_rpm = max(EMC2302_get_fan_speed(0), EMC2302_get_fan_speed(1));
                 break;
             default:
         }
