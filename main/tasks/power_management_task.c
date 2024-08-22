@@ -131,7 +131,8 @@ void POWER_MANAGEMENT_task(void * pvParameters)
                     exit(EXIT_FAILURE);
                 }
 
-                ESP_LOGI(TAG, "VIN: %f, VOUT: %f, IOUT: %f", TPS546_get_vin(), TPS546_get_vout(), TPS546_get_iout());
+                //enable for debugging TPS
+                //ESP_LOGI(TAG, "VIN: %f, VOUT: %f, IOUT: %f", TPS546_get_vin(), TPS546_get_vout(), TPS546_get_iout());
                 // ESP_LOGI(TAG, "Regulator power: %f mW", power_management->power);
                 // ESP_LOGI(TAG, "TPS546 Temp: %2f", power_management->vr_temp);
                 // ESP_LOGI(TAG, "TPS546 Frequency %d", TPS546_get_frequency());
