@@ -1,5 +1,8 @@
 [![](https://dcbadge.vercel.app/api/server/3E8ca2dkcC)](https://discord.gg/3E8ca2dkcC)
 
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/bitaxeorg/esp-miner-multichip/total)
+
+
 # ESP-Miner-Multichip
 
 | Supported Targets | ESP32-S3 (BitAxe v2+) |
