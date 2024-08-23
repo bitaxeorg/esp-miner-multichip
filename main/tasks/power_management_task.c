@@ -92,8 +92,8 @@ void POWER_MANAGEMENT_task(void * pvParameters)
                 power_management->voltage = TPS546_get_vin() * 1000;
                 power_management->current = TPS546_get_iout() * 1000;
 
-                // calculate regulator power (in milliwatts)
-                power_management->power = (TPS546_get_vout() * power_management->current) / 1000;
+                // calculate regulator power (in milliwatts), added +12 W to count for the missing parts before TPS
+                power_management->power = ((TPS546_get_vout() * power_management->current) / 1000)+12;
 
                 break;
             default:
