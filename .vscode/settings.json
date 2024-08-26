@@ -16,6 +16,11 @@
         "array": "c",
         "string": "c",
         "string_view": "c",
+        "system_error": "c",
+        "random": "c",
+        "leak_tracker.h": "c",
+        "history.h": "c",
+        "system.h": "c",
         "*.tcc": "c"
     },
     "editor.formatOnSave": false,
