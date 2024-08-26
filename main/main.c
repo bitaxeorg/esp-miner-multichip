@@ -16,6 +16,7 @@
 #include "serial.h"
 #include "stratum_task.h"
 #include "user_input_task.h"
+#include "history.h"
 
 static GlobalState GLOBAL_STATE = {.extranonce_str = NULL, .extranonce_2_len = 0, .abandon_work = 0, .version_mask = 0};
 
@@ -26,6 +27,19 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "Welcome to the bitaxe - hack the planet!");
     ESP_ERROR_CHECK(nvs_flash_init());
+
+    if (!esp_psram_is_initialized()) {
+        ESP_LOGE(TAG, "PSRAM is not available");
+        return;
+    }
+
+    if (!history_init()) {
+        ESP_LOGE(TAG, "History couldn't be initialized");
+        return;
+    }
+
+    size_t total_psram = esp_psram_get_size();
+    ESP_LOGI(TAG, "PSRAM found with %dMB", total_psram / (1024 * 1024));
 
     GLOBAL_STATE.POWER_MANAGEMENT_MODULE.frequency_value = nvs_config_get_u16(NVS_CONFIG_ASIC_FREQ, CONFIG_ASIC_FREQUENCY);
     ESP_LOGI(TAG, "NVS_CONFIG_ASIC_FREQ %f", (float)GLOBAL_STATE.POWER_MANAGEMENT_MODULE.frequency_value);

@@ -1,5 +1,4 @@
 #include "http_server.h"
-#include "recovery_page.h"
 #include "cJSON.h"
 #include "esp_chip_info.h"
 #include "esp_http_server.h"
@@ -13,6 +12,7 @@
 #include "freertos/task.h"
 #include "global_state.h"
 #include "nvs_config.h"
+#include "recovery_page.h"
 #include "vcore.h"
 #include <fcntl.h>
 #include <string.h>
@@ -29,11 +29,16 @@
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 #include "lwip/sys.h"
-#include <pthread.h>
 
-static const char * TAG = "http_server";
+#include "history.h"
 
-static GlobalState * GLOBAL_STATE;
+#pragma GCC diagnostic error "-Wall"
+#pragma GCC diagnostic error "-Wextra"
+#pragma GCC diagnostic error "-Wmissing-prototypes"
+
+static const char *TAG = "http_server";
+
+static GlobalState *GLOBAL_STATE;
 static httpd_handle_t server = NULL;
 
 static int fd = -1;
@@ -57,7 +62,25 @@ typedef struct rest_server_context
 
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
 
-esp_err_t init_fs(void)
+static void *psram_malloc(size_t size)
+{
+    return heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
+}
+
+static void psram_free(void *ptr)
+{
+    heap_caps_free(ptr);
+}
+
+static void configure_cjson_for_psram()
+{
+    cJSON_Hooks hooks;
+    hooks.malloc_fn = psram_malloc;
+    hooks.free_fn = psram_free;
+    cJSON_InitHooks(&hooks);
+}
+
+static esp_err_t init_fs(void)
 {
     esp_vfs_spiffs_conf_t conf = {.base_path = "", .partition_label = NULL, .max_files = 5, .format_if_mount_failed = false};
     esp_err_t ret = esp_vfs_spiffs_register(&conf);
@@ -84,18 +107,20 @@ esp_err_t init_fs(void)
 }
 
 /* Function for stopping the webserver */
-void stop_webserver(httpd_handle_t server)
+/*
+static void stop_webserver(httpd_handle_t server)
 {
     if (server) {
-        /* Stop the httpd server */
+        // Stop the httpd server
         httpd_stop(server);
     }
 }
+*/
 
 /* Set HTTP response content type according to file extension */
-static esp_err_t set_content_type_from_file(httpd_req_t * req, const char * filepath)
+static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepath)
 {
-    const char * type = "text/plain";
+    const char *type = "text/plain";
     if (CHECK_FILE_EXTENSION(filepath, ".html")) {
         type = "text/html";
     } else if (CHECK_FILE_EXTENSION(filepath, ".js")) {
@@ -111,7 +136,7 @@ static esp_err_t set_content_type_from_file(httpd_req_t * req, const char * file
     }
     return httpd_resp_set_type(req, type);
 }
-static esp_err_t set_cors_headers(httpd_req_t * req)
+static esp_err_t set_cors_headers(httpd_req_t *req)
 {
 
     return httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*") == ESP_OK &&
@@ -122,19 +147,19 @@ static esp_err_t set_cors_headers(httpd_req_t * req)
 }
 
 /* Recovery handler */
-static esp_err_t rest_recovery_handler(httpd_req_t * req)
+static esp_err_t rest_recovery_handler(httpd_req_t *req)
 {
     httpd_resp_send(req, recovery_page, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
 
 /* Send HTTP response with the contents of the requested file */
-static esp_err_t rest_common_get_handler(httpd_req_t * req)
+static esp_err_t rest_common_get_handler(httpd_req_t *req)
 {
     char filepath[FILE_PATH_MAX];
     uint8_t filePathLength = sizeof(filepath);
 
-    rest_server_context_t * rest_context = (rest_server_context_t *) req->user_ctx;
+    rest_server_context_t *rest_context = (rest_server_context_t *) req->user_ctx;
     strlcpy(filepath, rest_context->base_path, filePathLength);
     if (req->uri[strlen(req->uri) - 1] == '/') {
         strlcat(filepath, "/index.html", filePathLength);
@@ -162,7 +187,7 @@ static esp_err_t rest_common_get_handler(httpd_req_t * req)
 
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
 
-    char * chunk = rest_context->scratch;
+    char *chunk = rest_context->scratch;
     ssize_t read_bytes;
     do {
         /* Read file in chunks into the scratch buffer */
@@ -190,7 +215,7 @@ static esp_err_t rest_common_get_handler(httpd_req_t * req)
     return ESP_OK;
 }
 
-static esp_err_t PATCH_update_swarm(httpd_req_t * req)
+static esp_err_t PATCH_update_swarm(httpd_req_t *req)
 {
     // Set CORS headers
     if (set_cors_headers(req) != ESP_OK) {
@@ -200,7 +225,7 @@ static esp_err_t PATCH_update_swarm(httpd_req_t * req)
 
     int total_len = req->content_len;
     int cur_len = 0;
-    char * buf = ((rest_server_context_t *) (req->user_ctx))->scratch;
+    char *buf = ((rest_server_context_t *) (req->user_ctx))->scratch;
     int received = 0;
     if (total_len >= SCRATCH_BUFSIZE) {
         /* Respond with 500 Internal Server Error */
@@ -223,7 +248,7 @@ static esp_err_t PATCH_update_swarm(httpd_req_t * req)
     return ESP_OK;
 }
 
-static esp_err_t handle_options_request(httpd_req_t * req)
+static esp_err_t handle_options_request(httpd_req_t *req)
 {
     // Set CORS headers for OPTIONS request
     if (set_cors_headers(req) != ESP_OK) {
@@ -237,7 +262,7 @@ static esp_err_t handle_options_request(httpd_req_t * req)
     return ESP_OK;
 }
 
-static esp_err_t PATCH_update_settings(httpd_req_t * req)
+static esp_err_t PATCH_update_settings(httpd_req_t *req)
 {
     // Set CORS headers
     if (set_cors_headers(req) != ESP_OK) {
@@ -247,7 +272,7 @@ static esp_err_t PATCH_update_settings(httpd_req_t * req)
 
     int total_len = req->content_len;
     int cur_len = 0;
-    char * buf = ((rest_server_context_t *) (req->user_ctx))->scratch;
+    char *buf = ((rest_server_context_t *) (req->user_ctx))->scratch;
     int received = 0;
     if (total_len >= SCRATCH_BUFSIZE) {
         /* Respond with 500 Internal Server Error */
@@ -265,8 +290,8 @@ static esp_err_t PATCH_update_settings(httpd_req_t * req)
     }
     buf[total_len] = '\0';
 
-    cJSON * root = cJSON_Parse(buf);
-    cJSON * item;
+    cJSON *root = cJSON_Parse(buf);
+    cJSON *item;
     if ((item = cJSON_GetObjectItem(root, "stratumURL")) != NULL) {
         nvs_config_set_string(NVS_CONFIG_STRATUM_URL, item->valuestring);
     }
@@ -318,12 +343,12 @@ static esp_err_t PATCH_update_settings(httpd_req_t * req)
     return ESP_OK;
 }
 
-static esp_err_t POST_restart(httpd_req_t * req)
+static esp_err_t POST_restart(httpd_req_t *req)
 {
     ESP_LOGI(TAG, "Restarting System because of API Request");
 
     // Send HTTP response before restarting
-    const char* resp_str = "System will restart shortly.";
+    const char *resp_str = "System will restart shortly.";
     httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
 
     // Delay to ensure the response is sent
@@ -336,7 +361,7 @@ static esp_err_t POST_restart(httpd_req_t * req)
     return ESP_OK;
 }
 
-static esp_err_t GET_swarm(httpd_req_t * req)
+static esp_err_t GET_swarm(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "application/json");
 
@@ -346,14 +371,13 @@ static esp_err_t GET_swarm(httpd_req_t * req)
         return ESP_FAIL;
     }
 
-    char * swarm_config = nvs_config_get_string(NVS_CONFIG_SWARM, "[]");
+    char *swarm_config = nvs_config_get_string(NVS_CONFIG_SWARM, "[]");
     httpd_resp_sendstr(req, swarm_config);
-    free(swarm_config);
     return ESP_OK;
 }
 
 /* Simple handler for getting system handler */
-static esp_err_t GET_system_info(httpd_req_t * req)
+static esp_err_t GET_system_info(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "application/json");
 
@@ -363,23 +387,24 @@ static esp_err_t GET_system_info(httpd_req_t * req)
         return ESP_FAIL;
     }
 
-    char * ssid = nvs_config_get_string(NVS_CONFIG_WIFI_SSID, CONFIG_ESP_WIFI_SSID);
-    char * hostname = nvs_config_get_string(NVS_CONFIG_HOSTNAME, CONFIG_LWIP_LOCAL_HOSTNAME);
-    char * stratumURL = nvs_config_get_string(NVS_CONFIG_STRATUM_URL, CONFIG_STRATUM_URL);
-    char * stratumUser = nvs_config_get_string(NVS_CONFIG_STRATUM_USER, CONFIG_STRATUM_USER);
-    char * board_version = nvs_config_get_string(NVS_CONFIG_BOARD_VERSION, "unknown");
+    char *ssid = nvs_config_get_string(NVS_CONFIG_WIFI_SSID, CONFIG_ESP_WIFI_SSID);
+    char *hostname = nvs_config_get_string(NVS_CONFIG_HOSTNAME, CONFIG_LWIP_LOCAL_HOSTNAME);
+    char *stratumURL = nvs_config_get_string(NVS_CONFIG_STRATUM_URL, CONFIG_STRATUM_URL);
+    char *stratumUser = nvs_config_get_string(NVS_CONFIG_STRATUM_USER, CONFIG_STRATUM_USER);
+    char *board_version = nvs_config_get_string(NVS_CONFIG_BOARD_VERSION, "unknown");
 
-        cJSON * root = cJSON_CreateObject();
+    cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "power", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.power);
     cJSON_AddNumberToObject(root, "voltage", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.voltage);
     cJSON_AddNumberToObject(root, "current", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.current);
     cJSON_AddNumberToObject(root, "temp", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.chip_temp_avg);
     cJSON_AddNumberToObject(root, "vrTemp", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.vr_temp);
-    // for Hex
     cJSON_AddNumberToObject(root, "boardtemp1", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.board_temp_1);
     cJSON_AddNumberToObject(root, "boardtemp2", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.board_temp_2);
-
-    cJSON_AddNumberToObject(root, "hashRate", GLOBAL_STATE->SYSTEM_MODULE.current_hashrate);
+    cJSON_AddNumberToObject(root, "hashRateTimestamp", history_get_current_timestamp());
+    cJSON_AddNumberToObject(root, "hashRate_10m", history_get_current_10m());
+    cJSON_AddNumberToObject(root, "hashRate_1h", history_get_current_1h());
+    cJSON_AddNumberToObject(root, "hashRate_1d", history_get_current_1d());
     cJSON_AddStringToObject(root, "bestDiff", GLOBAL_STATE->SYSTEM_MODULE.best_diff_string);
     cJSON_AddStringToObject(root, "bestSessionDiff", GLOBAL_STATE->SYSTEM_MODULE.best_session_diff_string);
 
@@ -396,27 +421,27 @@ static esp_err_t GET_system_info(httpd_req_t * req)
     cJSON_AddNumberToObject(root, "asicCount", GLOBAL_STATE->asic_count);
     uint16_t small_core_count = 0;
     switch (GLOBAL_STATE->asic_model) {
-        case ASIC_BM1366:
-            small_core_count = BM1366_SMALL_CORE_COUNT;
-            break;
-        case ASIC_UNKNOWN:
-        default:
-            small_core_count = -1;
-            break;
+    case ASIC_BM1366:
+        small_core_count = BM1366_SMALL_CORE_COUNT;
+        break;
+    case ASIC_UNKNOWN:
+    default:
+        small_core_count = -1;
+        break;
     }
     cJSON_AddNumberToObject(root, "smallCoreCount", small_core_count);
-    cJSON_AddStringToObject(root, "deviceModel", GLOBAL_STATE->device_model_str);
     cJSON_AddStringToObject(root, "ASICModel", GLOBAL_STATE->asic_model_str);
     cJSON_AddStringToObject(root, "stratumURL", stratumURL);
     cJSON_AddNumberToObject(root, "stratumPort", nvs_config_get_u16(NVS_CONFIG_STRATUM_PORT, CONFIG_STRATUM_PORT));
     cJSON_AddStringToObject(root, "stratumUser", stratumUser);
 
-    cJSON_AddStringToObject(root, "version", esp_app_get_description()->version);
+    // cJSON_AddStringToObject(root, "version", esp_app_get_description()->version);
+    cJSON_AddStringToObject(root, "version", esp_ota_get_app_description()->version);
     cJSON_AddStringToObject(root, "boardVersion", board_version);
     cJSON_AddStringToObject(root, "runningPartition", esp_ota_get_running_partition()->label);
 
     cJSON_AddNumberToObject(root, "flipscreen", nvs_config_get_u16(NVS_CONFIG_FLIP_SCREEN, 1));
-    cJSON_AddNumberToObject(root, "overheat_mode", nvs_config_get_u16(NVS_CONFIG_OVERHEAT_MODE,0));
+    cJSON_AddNumberToObject(root, "overheat_mode", nvs_config_get_u16(NVS_CONFIG_OVERHEAT_MODE, 0));
     cJSON_AddNumberToObject(root, "invertscreen", nvs_config_get_u16(NVS_CONFIG_INVERT_SCREEN, 0));
 
     cJSON_AddNumberToObject(root, "invertfanpolarity", nvs_config_get_u16(NVS_CONFIG_INVERT_FAN_POLARITY, 1));
@@ -430,19 +455,167 @@ static esp_err_t GET_system_info(httpd_req_t * req)
     free(stratumUser);
     free(board_version);
 
-        const char * sys_info = cJSON_Print(root);
+    const char *sys_info = cJSON_Print(root);
     httpd_resp_sendstr(req, sys_info);
     free(sys_info);
     cJSON_Delete(root);
     return ESP_OK;
 }
 
-esp_err_t POST_WWW_update(httpd_req_t * req)
+static esp_err_t GET_history_len(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+
+    // Set CORS headers
+    if (set_cors_headers(req) != ESP_OK) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    // ensure consistency
+    history_lock();
+
+    uint64_t first_timestamp = 0;
+    uint64_t last_timestamp = 0;
+    uint32_t num_samples = 0;
+
+    if (!is_history_available()) {
+        ESP_LOGW(TAG, "history is not available");
+    } else {
+        history_get_timestamps(&first_timestamp, &last_timestamp, &num_samples);
+    }
+
+    history_unlock();
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddItemToObjectCS(root, "firstTimestamp", cJSON_CreateNumber(first_timestamp));
+    cJSON_AddItemToObjectCS(root, "lastTimestamp", cJSON_CreateNumber(last_timestamp));
+    cJSON_AddItemToObjectCS(root, "numSamples", cJSON_CreateNumber(num_samples));
+
+    const char *history_len = cJSON_Print(root);
+    httpd_resp_sendstr(req, history_len);
+    free((char*) history_len);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
+static esp_err_t GET_history(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+
+    // Set CORS headers
+    if (set_cors_headers(req) != ESP_OK) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    uint64_t start_timestamp = 0;
+    uint64_t end_timestamp = 0;
+
+    // Retrieve the start timestamp from the request using the query parameter "start_timestamp"
+    char query_str[128];
+    if (httpd_req_get_url_query_str(req, query_str, sizeof(query_str)) == ESP_OK) {
+        char param[64];
+
+        // Extract the start_timestamp
+        if (httpd_query_key_value(query_str, "start_timestamp", param, sizeof(param)) == ESP_OK) {
+            start_timestamp = strtoull(param, NULL, 10); // Convert the string to uint64_t
+        } else {
+            httpd_resp_send_500(req); // Bad Request if the start_timestamp parameter is missing
+            return ESP_FAIL;
+        }
+
+        // Extract the optional end_timestamp
+        if (httpd_query_key_value(query_str, "end_timestamp", param, sizeof(param)) == ESP_OK) {
+            end_timestamp = strtoull(param, NULL, 10); // Convert the string to uint64_t
+
+            // Ensure that the end_timestamp is not more than 1 hour after start_timestamp
+            if (end_timestamp > start_timestamp + 3600 * 1000ULL) {
+                end_timestamp = start_timestamp + 3600 * 1000ULL;
+            }
+        } else {
+            // If end_timestamp is not provided, default it to 1 hour after start_timestamp
+            end_timestamp = start_timestamp + 3600 * 1000ULL;
+        }
+    } else {
+        httpd_resp_send_500(req); // Bad Request if query string is missing
+        return ESP_FAIL;
+    }
+
+    // ensure consistency
+    history_lock();
+
+    int start_index = history_search_nearest_timestamp(start_timestamp);
+    int end_index = history_search_nearest_timestamp(end_timestamp);
+    int num_samples = end_index - start_index + 1;
+
+    if (!is_history_available()) {
+        ESP_LOGW(TAG, "history is not available");
+        num_samples = 0;
+    }
+
+    // check if something went wrong
+    bool failed = start_index == -1 || end_index == -1 || !num_samples || (end_index < start_index);
+
+    // if there is something weird return a valid struct but with only empty arrays
+    if (failed) {
+        ESP_LOGE(TAG, "history indices wrong %d %d %llu %llu", start_index, end_index, start_timestamp,
+                 end_timestamp);
+        num_samples = 0;
+    }
+
+    // Create the root object
+    cJSON *json_root = cJSON_CreateObject();
+
+    // Create arrays for the hashrate values
+    cJSON *json_hashrate_10m = cJSON_CreateArray();
+    cJSON *json_hashrate_1h = cJSON_CreateArray();
+    cJSON *json_hashrate_1d = cJSON_CreateArray();
+    cJSON *json_timestamps = cJSON_CreateArray();
+
+    // we need to save a little bit of space
+    // - send one full base timestamp
+    // - other timestamps are relative to the base
+    // - send fixed point x100 to not transfer so many unused fractional decimal places
+    uint64_t base_timestamp = 0;
+    if (num_samples) {
+        base_timestamp = history_get_timestamp_sample(start_index);
+
+        // Populate the arrays with the data
+        for (int i = start_index; i < start_index + num_samples; i++) {
+            cJSON_AddItemToArray(json_hashrate_10m, cJSON_CreateNumber((int) (history_get_hashrate_10m_sample(i) * 100.0)));
+            cJSON_AddItemToArray(json_hashrate_1h, cJSON_CreateNumber((int) (history_get_hashrate_1h_sample(i) * 100.0)));
+            cJSON_AddItemToArray(json_hashrate_1d, cJSON_CreateNumber((int) (history_get_hashrate_1d_sample(i) * 100.0)));
+            cJSON_AddItemToArray(json_timestamps, cJSON_CreateNumber(history_get_timestamp_sample(i) - base_timestamp));
+        }
+    }
+
+    history_unlock();
+
+    // Add arrays to the root object
+    cJSON_AddItemToObject(json_root, "hashrate_10m", json_hashrate_10m);
+    cJSON_AddItemToObject(json_root, "hashrate_1h", json_hashrate_1h);
+    cJSON_AddItemToObject(json_root, "hashrate_1d", json_hashrate_1d);
+    cJSON_AddItemToObject(json_root, "timestamps", json_timestamps);
+    cJSON_AddItemToObjectCS(json_root, "timestampBase", cJSON_CreateNumber(base_timestamp));
+
+    // Serialize the JSON object to a string
+    const char *response = cJSON_PrintUnformatted(json_root);
+    httpd_resp_sendstr(req, response);
+
+    // Cleanup
+    free((void *) response);
+    cJSON_Delete(json_root);
+
+    return ESP_OK;
+}
+
+static esp_err_t POST_WWW_update(httpd_req_t *req)
 {
     char buf[1000];
     int remaining = req->content_len;
 
-    const esp_partition_t * www_partition =
+    const esp_partition_t *www_partition =
         esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "www");
     if (www_partition == NULL) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "WWW partition not found");
@@ -483,13 +656,13 @@ esp_err_t POST_WWW_update(httpd_req_t * req)
 /*
  * Handle OTA file upload
  */
-esp_err_t POST_OTA_update(httpd_req_t * req)
+static esp_err_t POST_OTA_update(httpd_req_t *req)
 {
     char buf[1000];
     esp_ota_handle_t ota_handle;
     int remaining = req->content_len;
 
-    const esp_partition_t * ota_partition = esp_ota_get_next_update_partition(NULL);
+    const esp_partition_t *ota_partition = esp_ota_get_next_update_partition(NULL);
     ESP_ERROR_CHECK(esp_ota_begin(ota_partition, OTA_SIZE_UNKNOWN, &ota_handle));
 
     while (remaining > 0) {
@@ -529,12 +702,8 @@ esp_err_t POST_OTA_update(httpd_req_t * req)
     return ESP_OK;
 }
 
-static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-void log_to_websocket(const char * format, va_list args)
+static void log_to_websocket(const char *format, va_list args)
 {
-    pthread_mutex_lock(&log_mutex);
-
     va_list args_copy;
     va_copy(args_copy, args);
 
@@ -543,9 +712,9 @@ void log_to_websocket(const char * format, va_list args)
     va_end(args_copy);
 
     // Allocate the buffer dynamically
-    char * log_buffer = (char *) calloc(needed_size + 2, sizeof(char));  // +2 for potential \n and \0
+    char *log_buffer = (char *) malloc(needed_size);
     if (log_buffer == NULL) {
-        pthread_mutex_unlock(&log_mutex);
+        // Handle allocation failure
         return;
     }
 
@@ -554,43 +723,39 @@ void log_to_websocket(const char * format, va_list args)
     vsnprintf(log_buffer, needed_size, format, args_copy);
     va_end(args_copy);
 
-    // Ensure the log message ends with a newline
-    size_t len = strlen(log_buffer);
-    if (len > 0 && log_buffer[len - 1] != '\n') {
-        log_buffer[len] = '\n';
-        log_buffer[len + 1] = '\0';
-        len++;
-    }
-
     // Prepare the WebSocket frame
     httpd_ws_frame_t ws_pkt;
     memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
     ws_pkt.payload = (uint8_t *) log_buffer;
-    ws_pkt.len = len;
+    ws_pkt.len = strlen(log_buffer);
     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
 
     // Print to standard output
-    printf("%s", log_buffer);
+    va_copy(args_copy, args);
+    vprintf(format, args_copy);
+    va_end(args_copy);
 
     // Ensure server and fd are valid
-    if (server != NULL && fd >= 0) {
-        // Send the WebSocket frame asynchronously
-        if (httpd_ws_send_frame_async(server, fd, &ws_pkt) != ESP_OK) {
-            esp_log_set_vprintf(vprintf);
-        }
+    if (server == NULL || fd < 0) {
+        // Handle invalid server or socket descriptor
+        free(log_buffer);
+        return;
+    }
+
+    // Send the WebSocket frame asynchronously
+    if (httpd_ws_send_frame_async(server, fd, &ws_pkt) != ESP_OK) {
+        esp_log_set_vprintf(vprintf);
     }
 
     // Free the allocated buffer
     free(log_buffer);
-
-    pthread_mutex_unlock(&log_mutex);
 }
 
 /*
  * This handler echos back the received ws data
  * and triggers an async send if certain message received
  */
-esp_err_t echo_handler(httpd_req_t * req)
+static esp_err_t echo_handler(httpd_req_t *req)
 {
 
     if (req->method == HTTP_GET) {
@@ -604,7 +769,7 @@ esp_err_t echo_handler(httpd_req_t * req)
 }
 
 // HTTP Error (404) Handler - Redirects all requests to the root page
-esp_err_t http_404_error_handler(httpd_req_t * req, httpd_err_code_t err)
+static esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 {
     // Set status
     httpd_resp_set_status(req, "302 Temporary Redirect");
@@ -617,10 +782,12 @@ esp_err_t http_404_error_handler(httpd_req_t * req, httpd_err_code_t err)
     return ESP_OK;
 }
 
-esp_err_t start_rest_server(void * pvParameters)
+esp_err_t start_rest_server(void *pvParameters)
 {
+    configure_cjson_for_psram();
+
     GLOBAL_STATE = (GlobalState *) pvParameters;
-    const char * base_path = "";
+    const char *base_path = "";
 
     bool enter_recovery = false;
     if (init_fs() != ESP_OK) {
@@ -630,7 +797,7 @@ esp_err_t start_rest_server(void * pvParameters)
     }
 
     REST_CHECK(base_path, "wrong base path", err);
-    rest_server_context_t * rest_context = calloc(1, sizeof(rest_server_context_t));
+    rest_server_context_t *rest_context = calloc(1, sizeof(rest_server_context_t));
     REST_CHECK(rest_context, "No memory for rest context", err);
     strlcpy(rest_context->base_path, base_path, sizeof(rest_context->base_path));
 
@@ -650,8 +817,18 @@ esp_err_t start_rest_server(void * pvParameters)
         .uri = "/api/system/info", .method = HTTP_GET, .handler = GET_system_info, .user_ctx = rest_context};
     httpd_register_uri_handler(server, &system_info_get_uri);
 
+    /* URI handler for fetching system info */
+
     httpd_uri_t swarm_get_uri = {.uri = "/api/swarm/info", .method = HTTP_GET, .handler = GET_swarm, .user_ctx = rest_context};
     httpd_register_uri_handler(server, &swarm_get_uri);
+
+    httpd_uri_t history_get_uri = {
+        .uri = "/api/history/data", .method = HTTP_GET, .handler = GET_history, .user_ctx = rest_context};
+    httpd_register_uri_handler(server, &history_get_uri);
+
+    httpd_uri_t history_get_len_uri = {
+        .uri = "/api/history/len", .method = HTTP_GET, .handler = GET_history_len, .user_ctx = rest_context};
+    httpd_register_uri_handler(server, &history_get_len_uri);
 
     httpd_uri_t update_swarm_uri = {
         .uri = "/api/swarm", .method = HTTP_PATCH, .handler = PATCH_update_swarm, .user_ctx = rest_context};
@@ -700,7 +877,8 @@ esp_err_t start_rest_server(void * pvParameters)
 
     } else {
         /* URI handler for getting web server files */
-        httpd_uri_t common_get_uri = {.uri = "/*", .method = HTTP_GET, .handler = rest_common_get_handler, .user_ctx = rest_context};
+        httpd_uri_t common_get_uri = {
+            .uri = "/*", .method = HTTP_GET, .handler = rest_common_get_handler, .user_ctx = rest_context};
         httpd_register_uri_handler(server, &common_get_uri);
     }
 
