@@ -49,7 +49,7 @@ export class SettingsComponent {
       return releases[0];
     }));
 
-    this.info$ = this.systemService.getInfo().pipe(shareReplay({refCount: true, bufferSize: 1}))
+    this.info$ = this.systemService.getInfo(0).pipe(shareReplay({refCount: true, bufferSize: 1}))
 
 
       this.info$.pipe(this.loadingService.lockUIUntilComplete())
