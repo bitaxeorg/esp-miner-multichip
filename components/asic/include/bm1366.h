@@ -6,7 +6,7 @@
 #include "mining.h"
 
 #define CRC5_MASK 0x1F
-#define BM1366_INITIAL_DIFFICULTY 1024
+#define BM1366_INITIAL_DIFFICULTY 2048
 
 #define BM1366_SERIALTX_DEBUG false
 #define BM1366_SERIALRX_DEBUG false
