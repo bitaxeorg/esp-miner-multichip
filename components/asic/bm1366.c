@@ -468,7 +468,10 @@ task_result * BM1366_proccess_work(void * pvParameters)
 
     uint32_t rolled_version = GLOBAL_STATE->ASIC_TASK_MODULE.active_jobs[job_id]->version | version_bits;
 
+    int asic_nr = (asic_result->nonce & 0x0000fc00) >> 10;
+
     result.job_id = job_id;
+    result.asic_nr = asic_nr;
     result.nonce = asic_result->nonce;
     result.rolled_version = rolled_version;
 
