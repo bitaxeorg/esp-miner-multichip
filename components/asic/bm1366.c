@@ -59,6 +59,8 @@ static const char * TAG = "bm1366Module";
 static uint8_t asic_response_buffer[SERIAL_BUF_SIZE];
 static task_result result;
 
+static float current_frequency = 56.25;
+
 /// @brief
 /// @param ftdi
 /// @param header
@@ -140,25 +142,27 @@ static void _reset(void)
     vTaskDelay(100 / portTICK_PERIOD_MS);
 }
 
-void BM1366_send_hash_frequency(int id, float target_freq, float max_diff) {
+bool BM1366_send_hash_frequency(float target_freq) {
+    float max_diff = 0.001;
     uint8_t freqbuf[6] = {0x00, 0x08, 0x40, 0xA0, 0x02, 0x41};
     uint8_t postdiv_min = 255;
     uint8_t postdiv2_min = 255;
     float best_freq = 0;
     uint8_t best_refdiv = 0, best_fbdiv = 0, best_postdiv1 = 0, best_postdiv2 = 0;
+    bool found = false;
 
     for (uint8_t refdiv = 2; refdiv > 0; refdiv--) {
         for (uint8_t postdiv1 = 7; postdiv1 > 0; postdiv1--) {
             for (uint8_t postdiv2 = 7; postdiv2 > 0; postdiv2--) {
                 uint16_t fb_divider = round(target_freq / 25.0 * (refdiv * postdiv2 * postdiv1));
                 float newf = 25.0 * fb_divider / (refdiv * postdiv2 * postdiv1);
-                
+
                 if (fb_divider >= 0xa0 && fb_divider <= 0xef &&
                     fabs(target_freq - newf) < max_diff &&
                     postdiv1 >= postdiv2 &&
                     postdiv1 * postdiv2 < postdiv_min &&
                     postdiv2 <= postdiv2_min) {
-                    
+
                     postdiv2_min = postdiv2;
                     postdiv_min = postdiv1 * postdiv2;
                     best_freq = newf;
@@ -166,14 +170,15 @@ void BM1366_send_hash_frequency(int id, float target_freq, float max_diff) {
                     best_fbdiv = fb_divider;
                     best_postdiv1 = postdiv1;
                     best_postdiv2 = postdiv2;
+                    found = true;
                 }
             }
         }
     }
 
-    if (best_fbdiv == 0) {
-        ESP_LOGE(TAG, "Failed to find PLL settings for target frequency %.2f", target_freq);
-        return;
+    if (!found) {
+        ESP_LOGE(TAG, "Didn't find PLL settings for target frequency %.2f", target_freq);
+        return false;
     }
 
     freqbuf[2] = (best_fbdiv * 25 / best_refdiv >= 2400) ? 0x50 : 0x40;
@@ -181,14 +186,50 @@ void BM1366_send_hash_frequency(int id, float target_freq, float max_diff) {
     freqbuf[4] = best_refdiv;
     freqbuf[5] = (((best_postdiv1 - 1) & 0xf) << 4) | ((best_postdiv2 - 1) & 0xf);
 
-    if (id != -1) {
-        freqbuf[0] = id * 2;
-        _send_BM1366(TYPE_CMD | GROUP_SINGLE | CMD_WRITE, freqbuf, 6, false);
-    } else {
-        _send_BM1366(TYPE_CMD | GROUP_ALL | CMD_WRITE, freqbuf, 6, false);
+    _send_BM1366(TYPE_CMD | GROUP_ALL | CMD_WRITE, freqbuf, sizeof(freqbuf), BM1366_SERIALTX_DEBUG);
+
+    ESP_LOGI(TAG, "Setting Frequency to %.2fMHz (%.2f)", target_freq, best_freq);
+    current_frequency = target_freq;
+    return true;
+}
+
+bool do_frequency_transition(float target_frequency) {
+    float step = 6.25;
+    float current = current_frequency;
+    float target = target_frequency;
+
+    // Determine the direction of the transition
+    float direction = (target > current) ? step : -step;
+
+    // Align to the next 6.25-dividable value if not already on one
+    if (fmod(current, step) != 0) {
+        // If ramping up, round up to the next multiple; if ramping down, round down
+        float next_dividable;
+        if (direction > 0) {
+            next_dividable = ceil(current / step) * step;
+        } else {
+            next_dividable = floor(current / step) * step;
+        }
+        current = next_dividable;
+        BM1366_send_hash_frequency(current);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 
-    //ESP_LOGI(TAG, "Setting Frequency to %.2fMHz (%.2f)", target_freq, best_freq);
+    // Ramp in the appropriate direction
+    while ((direction > 0 && current < target) || (direction < 0 && current > target)) {
+        float next_step = fmin(fabs(direction), fabs(target - current));
+        current += direction > 0 ? next_step : -next_step;
+        BM1366_send_hash_frequency(current);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+    // Set the exact target frequency to finalize
+    BM1366_send_hash_frequency(target);
+    return true;
+}
+
+// Add this new function to allow external calls for frequency changes
+bool BM1366_set_frequency(float target_freq) {
+    return do_frequency_transition(target_freq);
 }
 
 static int count_asic_chips(void) {
@@ -210,19 +251,8 @@ static int count_asic_chips(void) {
 }
 
 static void do_frequency_ramp_up(float target_frequency) {
-    float current = 56.25;
-    float step = 6.25;
-
-    ESP_LOGI(TAG, "Ramping up frequency from %.2f MHz to %.2f MHz with step %.2f MHz", current, target_frequency, step);
-
-    BM1366_send_hash_frequency(-1, current, 0.001);
-    
-    while (current < target_frequency) {
-        float next_step = fminf(step, target_frequency - current);
-        current += next_step;
-        BM1366_send_hash_frequency(-1, current, 0.001);
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
+    ESP_LOGI(TAG, "Ramping up frequency from %.2f MHz to %.2f MHz", current_frequency, target_frequency);
+    do_frequency_transition(target_frequency);
 }
 
 uint8_t BM1366_init(uint64_t frequency, uint16_t asic_count)
@@ -438,7 +468,10 @@ task_result * BM1366_proccess_work(void * pvParameters)
 
     uint32_t rolled_version = GLOBAL_STATE->ASIC_TASK_MODULE.active_jobs[job_id]->version | version_bits;
 
+    int asic_nr = (asic_result->nonce & 0x0000fc00) >> 10;
+
     result.job_id = job_id;
+    result.asic_nr = asic_nr;
     result.nonce = asic_result->nonce;
     result.rolled_version = rolled_version;
 
