@@ -44,6 +44,7 @@ static const char *TAG = "http_server";
 
 static GlobalState *GLOBAL_STATE;
 static httpd_handle_t server = NULL;
+QueueHandle_t log_queue = NULL;
 
 static int fd = -1;
 
@@ -57,6 +58,7 @@ static int fd = -1;
 
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + 128)
 #define SCRATCH_BUFSIZE (10240)
+#define MESSAGE_QUEUE_SIZE (128)
 
 typedef struct rest_server_context
 {
@@ -720,7 +722,7 @@ static esp_err_t POST_OTA_update(httpd_req_t *req)
     return ESP_OK;
 }
 
-static void log_to_websocket(const char *format, va_list args)
+static void log_to_queue(const char * format, va_list args)
 {
     va_list args_copy;
     va_copy(args_copy, args);
@@ -730,9 +732,8 @@ static void log_to_websocket(const char *format, va_list args)
     va_end(args_copy);
 
     // Allocate the buffer dynamically
-    char *log_buffer = (char *) malloc(needed_size);
+    char * log_buffer = (char *) calloc(needed_size + 2, sizeof(char));  // +2 for potential \n and \0
     if (log_buffer == NULL) {
-        // Handle allocation failure
         return;
     }
 
@@ -741,48 +742,57 @@ static void log_to_websocket(const char *format, va_list args)
     vsnprintf(log_buffer, needed_size, format, args_copy);
     va_end(args_copy);
 
+    // Ensure the log message ends with a newline
+    size_t len = strlen(log_buffer);
+    if (len > 0 && log_buffer[len - 1] != '\n') {
+        log_buffer[len] = '\n';
+        log_buffer[len + 1] = '\0';
+        len++;
+    }
+
+    // Print to standard output
+    printf("%s", log_buffer);
+
+    if (xQueueSendToBack(log_queue, (void*)&log_buffer, (TickType_t) 0) != pdPASS) {
+        if (log_buffer != NULL) {
+            free((void*)log_buffer);
+        }
+    }
+}
+
+static void send_log_to_websocket(char *message)
+{
     // Prepare the WebSocket frame
     httpd_ws_frame_t ws_pkt;
     memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-    ws_pkt.payload = (uint8_t *) log_buffer;
-    ws_pkt.len = strlen(log_buffer);
+    ws_pkt.payload = (uint8_t *)message;
+    ws_pkt.len = strlen(message);
     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
 
-    // Print to standard output
-    va_copy(args_copy, args);
-    vprintf(format, args_copy);
-    va_end(args_copy);
-
     // Ensure server and fd are valid
-    if (server == NULL || fd < 0) {
-        // Handle invalid server or socket descriptor
-        free(log_buffer);
-        return;
-    }
-
-    // Send the WebSocket frame asynchronously
-    if (httpd_ws_send_frame_async(server, fd, &ws_pkt) != ESP_OK) {
-        esp_log_set_vprintf(vprintf);
+    if (server != NULL && fd >= 0) {
+        // Send the WebSocket frame asynchronously
+        if (httpd_ws_send_frame_async(server, fd, &ws_pkt) != ESP_OK) {
+            esp_log_set_vprintf(vprintf);
+        }
     }
 
     // Free the allocated buffer
-    free(log_buffer);
+    free((void*)message);
 }
 
 /*
  * This handler echos back the received ws data
  * and triggers an async send if certain message received
  */
-static esp_err_t echo_handler(httpd_req_t *req)
+static esp_err_t echo_handler(httpd_req_t * req)
 {
-
     if (req->method == HTTP_GET) {
         ESP_LOGI(TAG, "Handshake done, the new connection was opened");
         fd = httpd_req_to_sockfd(req);
-        esp_log_set_vprintf(log_to_websocket);
+        esp_log_set_vprintf(log_to_queue);
         return ESP_OK;
     }
-
     return ESP_OK;
 }
 
@@ -798,6 +808,29 @@ static esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 
     ESP_LOGI(TAG, "Redirecting to root");
     return ESP_OK;
+}
+
+static void websocket_log_handler()
+{
+    while (true)
+    {
+        char *message;
+        if (xQueueReceive(log_queue, &message, (TickType_t) portMAX_DELAY) != pdPASS) {
+            if (message != NULL) {
+                free((void*)message);
+            }
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+            continue;
+        }
+
+        if (fd == -1) {
+            free((void*)message);
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+            continue;
+        }
+
+        send_log_to_websocket(message);
+    }
 }
 
 esp_err_t start_rest_server(void *pvParameters)
@@ -818,6 +851,8 @@ esp_err_t start_rest_server(void *pvParameters)
     rest_server_context_t *rest_context = calloc(1, sizeof(rest_server_context_t));
     REST_CHECK(rest_context, "No memory for rest context", err);
     strlcpy(rest_context->base_path, base_path, sizeof(rest_context->base_path));
+
+    log_queue = xQueueCreate(MESSAGE_QUEUE_SIZE, sizeof(char*));
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.uri_match_fn = httpd_uri_match_wildcard;
@@ -902,8 +937,10 @@ esp_err_t start_rest_server(void *pvParameters)
 
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);
 
-    // Start the DNS server that will redirect all queries to the softAP IP
+    // Start websocket log handler thread
+    xTaskCreate(&websocket_log_handler, "websocket_log_handler", 4096, NULL, 2, NULL);
 
+    // Start the DNS server that will redirect all queries to the softAP IP
     dns_server_config_t dns_config = DNS_SERVER_CONFIG_SINGLE("*" /* all A queries */, "WIFI_AP_DEF" /* softAP netif ID */);
     start_dns_server(&dns_config);
 
