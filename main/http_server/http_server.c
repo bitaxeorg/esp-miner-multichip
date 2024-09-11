@@ -32,6 +32,10 @@
 
 #include "history.h"
 
+#ifdef DEBUG_MEMORY_LOGGING
+#include "leak_tracker.h"
+#endif
+
 #pragma GCC diagnostic error "-Wall"
 #pragma GCC diagnostic error "-Wextra"
 #pragma GCC diagnostic error "-Wmissing-prototypes"
@@ -339,7 +343,7 @@ static esp_err_t PATCH_update_settings(httpd_req_t *req)
     if ((item = cJSON_GetObjectItem(root, "fanspeed")) != NULL) {
         nvs_config_set_u16(NVS_CONFIG_FAN_SPEED, item->valueint);
     }
-
+    
     cJSON_Delete(root);
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
@@ -404,7 +408,6 @@ static esp_err_t GET_system_info(httpd_req_t *req)
     }
 
     // Gather system info as before
-
     char *ssid = nvs_config_get_string(NVS_CONFIG_WIFI_SSID, CONFIG_ESP_WIFI_SSID);
     char *hostname = nvs_config_get_string(NVS_CONFIG_HOSTNAME, CONFIG_LWIP_LOCAL_HOSTNAME);
     char *stratumURL = nvs_config_get_string(NVS_CONFIG_STRATUM_URL, CONFIG_STRATUM_URL);
@@ -528,6 +531,7 @@ static cJSON *get_history_data(uint64_t start_timestamp, uint64_t end_timestamp)
     return history;
 }
 
+
 static esp_err_t GET_history_len(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "application/json");
@@ -543,7 +547,7 @@ static esp_err_t GET_history_len(httpd_req_t *req)
 
     uint64_t first_timestamp = 0;
     uint64_t last_timestamp = 0;
-    uint32_t num_samples = 0;
+    int num_samples = 0;
 
     if (!is_history_available()) {
         ESP_LOGW(TAG, "history is not available");
@@ -564,6 +568,7 @@ static esp_err_t GET_history_len(httpd_req_t *req)
     cJSON_Delete(root);
     return ESP_OK;
 }
+
 
 static esp_err_t GET_history(httpd_req_t *req)
 {
@@ -616,11 +621,12 @@ static esp_err_t GET_history(httpd_req_t *req)
     httpd_resp_sendstr(req, response);
 
     // Cleanup
-    free((void *) response);
+    free((void *)response);
     cJSON_Delete(history);
 
     return ESP_OK;
 }
+
 
 static esp_err_t POST_WWW_update(httpd_req_t *req)
 {
