@@ -64,7 +64,6 @@ bm_job construct_bm_job(mining_notify *params, const char *merkle_root, const ui
 
     hex2bin(merkle_root, new_job.merkle_root, 32);
 
-    // hex2bin(merkle_root, new_job.merkle_root_be, 32);
     swap_endian_words(merkle_root, new_job.merkle_root_be);
     reverse_bytes(new_job.merkle_root_be, 32);
 
@@ -133,27 +132,20 @@ double test_nonce_value(const bm_job *job, const uint32_t nonce, const uint32_t 
 {
     double d64, s64, ds;
     unsigned char header[80];
-
-    // // TODO: use the midstate hash instead of hashing the whole header
-    // uint32_t rolled_version = job->version;
-    // for (int i = 0; i < midstate_index; i++) {
-    //     rolled_version = increment_bitmask(rolled_version, job->version_mask);
-    // }
-
-    // copy data from job to header
-    memcpy(header, &rolled_version, 4);
-    memcpy(header + 4, job->prev_block_hash, 32);
-    memcpy(header + 36, job->merkle_root, 32);
-    memcpy(header + 68, &job->ntime, 4);
-    memcpy(header + 72, &job->target, 4);
-    memcpy(header + 76, &nonce, 4);
-
     unsigned char hash_buffer[32];
     unsigned char hash_result[32];
 
-    // double hash the header
-    mbedtls_sha256(header, 80, hash_buffer, 0);
-    mbedtls_sha256(hash_buffer, 32, hash_result, 0);
+    // Use midstate instead of the whole hash
+    memcpy(hash_buffer, job->midstate, 32);  // use pre computed midstate
+
+    // Complete hash with (ntime, target, nonce)
+    memcpy(header, &job->ntime, 4);
+    memcpy(header + 4, &job->target, 4);
+    memcpy(header + 8, &nonce, 4);
+
+    // Second round of hash with missing datas
+    mbedtls_sha256(header, 12, hash_buffer + 32, 0);  // only 12 byttes to hash
+    mbedtls_sha256(hash_buffer, 64, hash_result, 0);  // Second round of SHA-256
 
     d64 = truediffone;
     s64 = le256todouble(hash_result);
