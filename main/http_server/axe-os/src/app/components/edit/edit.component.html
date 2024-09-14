@@ -29,12 +29,26 @@
                 </div>
             </div>
         </div>
-
-
         <div class="field grid p-fluid">
             <label htmlFor="stratumPort" class="col-12 mb-2 md:col-2 md:mb-0">Stratum Port:</label>
             <div class="col-12 md:col-10">
                 <input pInputText id="stratumPort" formControlName="stratumPort" type="number" />
+            </div>
+        </div>
+        <div class="field grid p-fluid">
+            <label htmlFor="stratumURL" class="col-12 mb-2 md:col-2 md:mb-0">Fallback Stratum URL:</label>
+            <div class="col-12 md:col-10">
+                <input pInputText id="fallbackStratumURL" type="text" formControlName="fallbackStratumURL"
+                    formControlName="fallbackStratumURL" />
+                <div>
+                    <small>Do not include 'stratum+tcp://' or port.</small>
+                </div>
+            </div>
+        </div>
+        <div class="field grid p-fluid">
+            <label htmlFor="fallbackStratumPort" class="col-12 mb-2 md:col-2 md:mb-0">Fallback Stratum Port:</label>
+            <div class="col-12 md:col-10">
+                <input pInputText id="fallbackStratumPort" formControlName="fallbackStratumPort" type="number" />
             </div>
         </div>
         <div class="field grid p-fluid">

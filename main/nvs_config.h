@@ -10,6 +10,8 @@
 #define NVS_CONFIG_HOSTNAME "hostname"
 #define NVS_CONFIG_STRATUM_URL "stratumurl"
 #define NVS_CONFIG_STRATUM_PORT "stratumport"
+#define NVS_CONFIG_FALLBACK_STRATUM_URL "fbstratumurl"
+#define NVS_CONFIG_FALLBACK_STRATUM_PORT "fbstratumport"
 #define NVS_CONFIG_STRATUM_USER "stratumuser"
 #define NVS_CONFIG_STRATUM_PASS "stratumpass"
 #define NVS_CONFIG_ASIC_FREQ "asicfrequency"
