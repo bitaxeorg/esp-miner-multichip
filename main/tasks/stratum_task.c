@@ -19,6 +19,7 @@
 #define FALLBACK_STRATUM_URL CONFIG_FALLBACK_STRATUM_URL
 
 #define STRATUM_PW CONFIG_STRATUM_PW
+#define FALLBACK_STRATUM_PW CONFIG_FALLBACK_STRATUM_PW
 #define STRATUM_DIFFICULTY CONFIG_STRATUM_DIFFICULTY
 
 #define MAX_RETRY_ATTEMPTS 3
@@ -236,8 +237,8 @@ void stratum_task(void * pvParameters)
         //mining.suggest_difficulty - ID: 3
         STRATUM_V1_suggest_difficulty(GLOBAL_STATE->sock, STRATUM_DIFFICULTY);
 
-        char * username = nvs_config_get_string(NVS_CONFIG_STRATUM_USER, STRATUM_USER);
-        char * password = nvs_config_get_string(NVS_CONFIG_STRATUM_PASS, STRATUM_PW);
+        char * username = GLOBAL_STATE->SYSTEM_MODULE.is_using_fallback ? nvs_config_get_string(NVS_CONFIG_FALLBACK_STRATUM_USER, FALLBACK_STRATUM_USER) : nvs_config_get_string(NVS_CONFIG_STRATUM_USER, STRATUM_USER);
+        char * password = GLOBAL_STATE->SYSTEM_MODULE.is_using_fallback ? nvs_config_get_string(NVS_CONFIG_FALLBACK_STRATUM_PASS, FALLBACK_STRATUM_PW) : nvs_config_get_string(NVS_CONFIG_STRATUM_PASS, STRATUM_PW);
 
         //mining.authorize - ID: 4
         STRATUM_V1_authenticate(GLOBAL_STATE->sock, username, password);

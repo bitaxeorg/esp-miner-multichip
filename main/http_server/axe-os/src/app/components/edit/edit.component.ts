@@ -90,6 +90,8 @@ export class EditComponent implements OnInit {
           ]],
           stratumUser: [info.stratumUser, [Validators.required]],
           stratumPassword: ['password', [Validators.required]],
+          fallbackStratumUser: [info.fallbackStratumUser, [Validators.required]],
+          fallbackStratumPassword: ['password', [Validators.required]],
           hostname: [info.hostname, [Validators.required]],
           ssid: [info.ssid, [Validators.required]],
           wifiPass: ['password'],

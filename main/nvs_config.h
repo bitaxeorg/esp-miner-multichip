@@ -14,6 +14,8 @@
 #define NVS_CONFIG_FALLBACK_STRATUM_PORT "fbstratumport"
 #define NVS_CONFIG_STRATUM_USER "stratumuser"
 #define NVS_CONFIG_STRATUM_PASS "stratumpass"
+#define NVS_CONFIG_FALLBACK_STRATUM_USER "fbstratumuser"
+#define NVS_CONFIG_FALLBACK_STRATUM_PASS "fbstratumpass"
 #define NVS_CONFIG_ASIC_FREQ "asicfrequency"
 #define NVS_CONFIG_ASIC_VOLTAGE "asicvoltage"
 #define NVS_CONFIG_ASIC_MODEL "asicmodel"
