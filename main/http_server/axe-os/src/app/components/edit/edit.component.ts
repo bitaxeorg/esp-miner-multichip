@@ -78,9 +78,7 @@ export class EditComponent implements OnInit {
             Validators.max(65353)
           ]],
           fallbackStratumURL: [info.fallbackStratumURL, [
-            Validators.required,
             Validators.pattern(/^(?!.*stratum\+tcp:\/\/).*$/),
-            Validators.pattern(/^[^:]*$/),
           ]],
           fallbackStratumPort: [info.fallbackStratumPort, [
             Validators.required,
