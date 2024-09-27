@@ -74,7 +74,7 @@ static void _init_system(GlobalState * GLOBAL_STATE)
     module->lastClockSync = 0;
     module->FOUND_BLOCK = false;
     module->startup_done = false;
-    
+
     // set the pool url
     module->pool_url = nvs_config_get_string(NVS_CONFIG_STRATUM_URL, CONFIG_STRATUM_URL);
 
@@ -139,7 +139,7 @@ void SYSTEM_update_overheat_mode(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
     uint16_t new_overheat_mode = nvs_config_get_u16(NVS_CONFIG_OVERHEAT_MODE, 0);
-    
+
     if (new_overheat_mode != module->overheat_mode) {
         module->overheat_mode = new_overheat_mode;
         ESP_LOGI(TAG, "Overheat mode updated to: %d", module->overheat_mode);
@@ -323,7 +323,7 @@ static void _update_connection(GlobalState * GLOBAL_STATE)
                 strncpy(module->oled_buf, module->ssid, sizeof(module->oled_buf));
                 module->oled_buf[sizeof(module->oled_buf) - 1] = 0;
                 OLED_writeString(0, 1, module->oled_buf);
-                
+
                 memset(module->oled_buf, 0, 20);
                 snprintf(module->oled_buf, 20, "Configuration SSID:");
                 OLED_writeString(0, 2, module->oled_buf);
@@ -542,7 +542,7 @@ void SYSTEM_task(void * pvParameters)
                         break;
                     } else if (strcmp(input_event, "LONG") == 0) {
                         ESP_LOGI(TAG, "Long button press detected, toggling WiFi SoftAP");
-                        toggle_wifi_softap(); // Toggle AP 
+                        toggle_wifi_softap(); // Toggle AP
                     }
                 }
             }
@@ -567,7 +567,7 @@ void SYSTEM_notify_rejected_share(GlobalState * GLOBAL_STATE)
 
 void SYSTEM_notify_mining_started(GlobalState * GLOBAL_STATE)
 {
-    
+
 }
 
 void SYSTEM_notify_new_ntime(GlobalState * GLOBAL_STATE, uint32_t ntime)
@@ -590,7 +590,7 @@ void SYSTEM_check_for_best_diff(GlobalState * GLOBAL_STATE, double found_diff, u
     _check_for_best_diff(GLOBAL_STATE, found_diff, job_id);
 }
 
-void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE, double pool_diff)
+void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
@@ -602,10 +602,10 @@ void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE, double pool_diff)
 
     int index = module->historical_hashrate_rolling_index;
 
-    module->historical_hashrate[index] = pool_diff;
+    module->historical_hashrate[index] = BM1366_INITIAL_DIFFICULTY;
     module->historical_hashrate_time_stamps[index] = current_time;
 
-    
+
     double sum = 0;
     uint64_t oldest_time = 0;
     int valid_shares = 0;
@@ -657,7 +657,7 @@ void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE, double pool_diff)
 
     uint64_t timestamp = (uint64_t)now.tv_sec * 1000llu + (uint64_t)now.tv_usec / 1000llu;
 
-    history_push_share(pool_diff, timestamp);
+    history_push_share(BM1366_INITIAL_DIFFICULTY, timestamp);
 
     module->current_hashrate_10m = history_get_current_10m();
 }

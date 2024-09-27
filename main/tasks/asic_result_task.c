@@ -42,7 +42,7 @@ void ASIC_result_task(void *pvParameters)
 
         //log the ASIC response
         ESP_LOGI(TAG, "AsicNr: %d Ver: %08" PRIX32 " Nonce %08" PRIX32 " diff %.1f of %ld.", asic_result->asic_nr,asic_result->rolled_version, asic_result->nonce, nonce_diff, pool_difficulty);
-        
+
         // warn if pool diff lower than chip diff
         if (pool_difficulty<GLOBAL_STATE->initial_ASIC_difficulty) {
             ESP_LOGI(TAG, "Warning chip diff %i lower than pool diff %i, hashrate will be under reported",
@@ -60,11 +60,9 @@ void ASIC_result_task(void *pvParameters)
                 GLOBAL_STATE->ASIC_TASK_MODULE.active_jobs[job_id]->ntime,
                 asic_result->nonce,
                 asic_result->rolled_version ^ GLOBAL_STATE->ASIC_TASK_MODULE.active_jobs[job_id]->version);
-        
-        SYSTEM_notify_found_nonce(GLOBAL_STATE, (double) pool_difficulty);
         }
-
+        SYSTEM_notify_found_nonce(GLOBAL_STATE);
         SYSTEM_check_for_best_diff(GLOBAL_STATE, nonce_diff, job_id);
-        
+
     }
 }
