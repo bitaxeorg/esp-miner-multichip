@@ -54,6 +54,18 @@ menu "Stratum Configuration"
         help
             Stratum password to use with pool
 
+    config FALLBACK_STRATUM_USER
+        string "Fallback Stratum username"
+        default "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa.bitaxe"
+        help
+            Fallback Stratum user to use with pool
+
+    config FALLBACK_STRATUM_PW
+        string "Fallback Stratum password"
+        default "x"
+        help
+            Fallback Stratum password to use with pool
+
     config STRATUM_DIFFICULTY
         int "Stratum default difficulty"
         range 0 4294967296
