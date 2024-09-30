@@ -60,6 +60,10 @@ static void _init_system(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
+    module->historical_hashrate_rolling_index = 0;
+    memset(module->historical_hashrate, 0, sizeof(module->historical_hashrate));
+    memset(module->historical_hashrate_time_stamps, 0, sizeof(module->historical_hashrate_time_stamps));
+    module->current_hashrate = 0;
     module->current_hashrate_10m = 0.0;
     module->screen_page = 0;
     module->shares_accepted = 0;
@@ -70,7 +74,7 @@ static void _init_system(GlobalState * GLOBAL_STATE)
     module->lastClockSync = 0;
     module->FOUND_BLOCK = false;
     module->startup_done = false;
-    
+
     // set the pool url
     module->pool_url = nvs_config_get_string(NVS_CONFIG_STRATUM_URL, CONFIG_STRATUM_URL);
     module->fallback_pool_url = nvs_config_get_string(NVS_CONFIG_FALLBACK_STRATUM_URL, CONFIG_FALLBACK_STRATUM_URL);
@@ -140,7 +144,7 @@ void SYSTEM_update_overheat_mode(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
     uint16_t new_overheat_mode = nvs_config_get_u16(NVS_CONFIG_OVERHEAT_MODE, 0);
-    
+
     if (new_overheat_mode != module->overheat_mode) {
         module->overheat_mode = new_overheat_mode;
         ESP_LOGI(TAG, "Overheat mode updated to: %d", module->overheat_mode);
@@ -324,7 +328,7 @@ static void _update_connection(GlobalState * GLOBAL_STATE)
                 strncpy(module->oled_buf, module->ssid, sizeof(module->oled_buf));
                 module->oled_buf[sizeof(module->oled_buf) - 1] = 0;
                 OLED_writeString(0, 1, module->oled_buf);
-                
+
                 memset(module->oled_buf, 0, 20);
                 snprintf(module->oled_buf, 20, "Configuration SSID:");
                 OLED_writeString(0, 2, module->oled_buf);
@@ -543,7 +547,7 @@ void SYSTEM_task(void * pvParameters)
                         break;
                     } else if (strcmp(input_event, "LONG") == 0) {
                         ESP_LOGI(TAG, "Long button press detected, toggling WiFi SoftAP");
-                        toggle_wifi_softap(); // Toggle AP 
+                        toggle_wifi_softap(); // Toggle AP
                     }
                 }
             }
@@ -568,7 +572,7 @@ void SYSTEM_notify_rejected_share(GlobalState * GLOBAL_STATE)
 
 void SYSTEM_notify_mining_started(GlobalState * GLOBAL_STATE)
 {
-    
+
 }
 
 void SYSTEM_notify_new_ntime(GlobalState * GLOBAL_STATE, uint32_t ntime)
@@ -591,9 +595,61 @@ void SYSTEM_check_for_best_diff(GlobalState * GLOBAL_STATE, double found_diff, u
     _check_for_best_diff(GLOBAL_STATE, found_diff, job_id);
 }
 
-void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE, double pool_diff)
+void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
+
+    // hashrate = (nonce_difficulty * 2^32) / time_to_find
+
+    // let's calculate the 10min average hashrate
+    uint64_t time_period = 600 * 1e6;
+    uint64_t current_time = esp_timer_get_time();
+
+    int index = module->historical_hashrate_rolling_index;
+
+    module->historical_hashrate[index] = BM1366_INITIAL_DIFFICULTY;
+    module->historical_hashrate_time_stamps[index] = current_time;
+
+
+    double sum = 0;
+    uint64_t oldest_time = 0;
+    int valid_shares = 0;
+    for (int i = 0; i < HISTORY_LENGTH; i++) {
+        // sum backwards
+        // avoid modulo of a negative number
+        int rindex = (index - i + HISTORY_LENGTH) % HISTORY_LENGTH;
+
+    uint64_t timestamp = module->historical_hashrate_time_stamps[rindex];
+
+    // zero timestamps indicate that the "slot" is not used
+        if (timestamp == 0) {
+            break;
+        }
+
+        // out of scope? break
+        if (current_time - timestamp > time_period) {
+            break;
+        }
+
+        sum += module->historical_hashrate[rindex];
+        oldest_time = timestamp;
+        valid_shares++;
+    }
+
+    // increment rolling index
+    // can't be done before summation
+    index = (index + 1) % HISTORY_LENGTH;
+    module->historical_hashrate_rolling_index = index;
+
+    double rolling_rate = (sum * 4.294967296e9) / (double) (time_period / 1e6);
+    double rolling_rate_gh = rolling_rate / 1.0e9;
+
+    ESP_LOGI(TAG, "hashrate: %.3fGH%s shares: %d (historical buffer spans %ds)", rolling_rate_gh,
+             (current_time - oldest_time >= time_period) ? "" : "*", valid_shares, (int) ((current_time - oldest_time) / 1e6));
+
+    module->current_hashrate = rolling_rate_gh;
+
+    _update_hashrate(GLOBAL_STATE);
 
     if (!module->lastClockSync) {
         ESP_LOGW(TAG, "clock not (yet) synchronized");
@@ -606,11 +662,7 @@ void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE, double pool_diff)
 
     uint64_t timestamp = (uint64_t)now.tv_sec * 1000llu + (uint64_t)now.tv_usec / 1000llu;
 
-    history_push_share(pool_diff, timestamp);
+    history_push_share(BM1366_INITIAL_DIFFICULTY, timestamp);
 
     module->current_hashrate_10m = history_get_current_10m();
-
-    _update_hashrate(GLOBAL_STATE);
-
-
 }

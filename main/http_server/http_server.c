@@ -439,6 +439,7 @@ static esp_err_t GET_system_info(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "boardtemp1", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.board_temp_1);
     cJSON_AddNumberToObject(root, "boardtemp2", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.board_temp_2);
     cJSON_AddNumberToObject(root, "hashRateTimestamp", history_get_current_timestamp());
+    cJSON_AddNumberToObject(root, "hashRate", GLOBAL_STATE->SYSTEM_MODULE.current_hashrate);
     cJSON_AddNumberToObject(root, "hashRate_10m", history_get_current_10m());
     cJSON_AddNumberToObject(root, "hashRate_1h", history_get_current_1h());
     cJSON_AddNumberToObject(root, "hashRate_1d", history_get_current_1d());
